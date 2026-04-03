@@ -1,0 +1,35 @@
+# Filebeat configuration
+
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*.log
+    - /var/log/syslog
+    - /var/log/auth.log
+  scan_frequency: 10s
+  harvester_limit: 1000
+
+output.http:
+  enabled: true
+  hosts: ["http://localhost:8000/api/parse"]
+  method: POST
+  headers:
+    Content-Type: "text/plain"
+  bulk_size: 1000
+  timeout: 30s
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
