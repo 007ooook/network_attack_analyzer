@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, message, Tag, Button } from 'antd';
-import axios from 'axios';
+import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
 import { SyncOutlined } from '@ant-design/icons';
-
-const API_BASE_URL = 'http://localhost:8006/api';
 
 const ThreatIntel: React.FC = () => {
   const [threats, setThreats] = useState<any[]>([]);
@@ -14,7 +12,7 @@ const ThreatIntel: React.FC = () => {
   // 加载威胁情报数据
   const loadThreats = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/threats`);
+      const response = await api.get('/threats');
       setThreats(response.data.threats || []);
     } catch (error) {
       console.error('Error loading threats:', error);
@@ -44,7 +42,7 @@ const ThreatIntel: React.FC = () => {
 
   const fetchThreats = async (): Promise<void> => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/fetch-threats`);
+      const response = await api.post('/fetch-threats');
       if (response.data.success) {
         console.log(response.data.message);
         await loadThreats();
@@ -74,7 +72,7 @@ const ThreatIntel: React.FC = () => {
   useEffect(() => {
     const checkConfig = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/config`);
+        const response = await api.get('/config');
         if (response.data.config) {
           const config = response.data.config;
           // 检查微步 API 配置是否存在

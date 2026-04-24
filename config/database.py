@@ -126,22 +126,54 @@ def init_database():
     ''')
     
     # 创建索引
+    # logs 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs (timestamp)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs (ip)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_source ON logs (source)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_method ON logs (method)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_path ON logs (path)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_logs_status ON logs (status)')
+    
+    # analysis_results 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_analysis_results_log_id ON analysis_results (log_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_analysis_results_threat_level ON analysis_results (threat_level)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_analysis_results_attack_type ON analysis_results (attack_type)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_analysis_results_confidence ON analysis_results (confidence)')
+    
+    # threat_intel 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_threat_intel_indicator ON threat_intel (indicator)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_threat_intel_threat_type ON threat_intel (threat_type)')
+    
+    # predictions 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_predictions_prediction_date ON predictions (prediction_date)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_predictions_attack_type ON predictions (attack_type)')
+    
+    # alerts 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts (severity)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_attack_type ON alerts (attack_type)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_source_ip ON alerts (source_ip)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_priority_score ON alerts (priority_score)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts (created_at)')
+    
+    # alert_rules 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alert_rules_rule_id ON alert_rules (rule_id)')
+    
+    # alert_policies 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_alert_policies_policy_id ON alert_policies (policy_id)')
+    
+    # data_sources 表索引
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_sources_name ON data_sources (name)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_sources_type ON data_sources (source_type)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_sources_status ON data_sources (status)')
+    
+    # data_source_logs 表索引
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_source_logs_source_id ON data_source_logs (source_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_source_logs_received_at ON data_source_logs (received_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_source_logs_processed ON data_source_logs (processed)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_source_logs_source_ip ON data_source_logs (source_ip)')
+    
+    # system_config 表索引
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_config (key)')
     
     conn.commit()
     conn.close()

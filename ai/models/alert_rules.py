@@ -90,6 +90,27 @@ class AlertRuleEngine:
         self.rules: Dict[str, AlertRule] = {}
         self.load_rules_from_database()
     
+    def _generate_rule_id(self, name: str = None) -> str:
+        """生成规则ID"""
+        import re
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM alert_rules')
+            count = cursor.fetchone()[0] + 1
+            conn.close()
+        except:
+            count = len(self.rules) + 1
+        
+        if name:
+            prefix = re.sub(r'[^a-zA-Z0-9]', '', name[:8]).upper()
+            if not prefix:
+                prefix = 'RULE'
+        else:
+            prefix = 'RULE'
+        
+        return f"{prefix}-{count:04d}"
+
     def add_rule(self, rule: AlertRule) -> None:
         """添加规则"""
         self.rules[rule.rule_id] = rule
@@ -241,73 +262,336 @@ class AlertRuleEngine:
             return False
     
     def create_default_rules(self) -> None:
-        """创建默认的告警规则"""
+        """创建默认的告警规则 - 覆盖系统所有攻击类型"""
         default_rules = [
+            # === Critical 级别 ===
             AlertRule(
-                rule_id='rule_001',
-                name='高危攻击检测',
-                description='检测高危类型的攻击行为',
+                rule_id='SQLI-0001',
+                name='SQL注入攻击检测',
+                description='检测SQL注入攻击，包括UNION注入、盲注、时间盲注等',
                 severity='Critical',
                 enabled=True,
                 conditions={
-                    'attack_type': {
-                        'in': ['SQL Injection', 'DDoS', 'Ransomware', 'Command Injection']
-                    },
-                    'confidence': {'min': 0.7}
+                    'attack_type': {'in': ['SQL Injection']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='CMDI-0002',
+                name='命令注入攻击检测',
+                description='检测操作系统命令注入攻击，包括管道符、反引号等注入方式',
+                severity='Critical',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Command Injection']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'incident_response']
+            ),
+            AlertRule(
+                rule_id='RCE-0003',
+                name='远程代码执行检测',
+                description='检测远程代码执行攻击，包括eval、exec等危险函数调用',
+                severity='Critical',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['RCE']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'incident_response']
+            ),
+            AlertRule(
+                rule_id='SSTI-0004',
+                name='服务端模板注入检测',
+                description='检测服务端模板注入攻击，包括Jinja2、Twig、Freemarker等',
+                severity='Critical',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['SSTI']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='AUTHBY-0005',
+                name='认证绕过攻击检测',
+                description='检测认证绕过攻击，包括权限提升、会话劫持等',
+                severity='Critical',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Authentication Bypass']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'incident_response']
+            ),
+            AlertRule(
+                rule_id='MALW-0006',
+                name='恶意软件感染检测',
+                description='检测恶意软件上传和感染，包括webshell、后门程序等',
+                severity='Critical',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Malware Infection']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'incident_response']
+            ),
+            # === High 级别 ===
+            AlertRule(
+                rule_id='XSS-0007',
+                name='跨站脚本攻击检测',
+                description='检测XSS攻击，包括反射型、存储型和DOM型XSS',
+                severity='High',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['XSS']},
+                    'confidence': {'min': 0.5}
                 },
                 actions=['alert', 'block_ip', 'notify_admin']
             ),
             AlertRule(
-                rule_id='rule_002',
-                name='中等风险检测',
-                description='检测中等风险的安全事件',
+                rule_id='PATHT-0008',
+                name='路径遍历攻击检测',
+                description='检测目录遍历攻击，包括../绕过、编码绕过等',
                 severity='High',
                 enabled=True,
                 conditions={
-                    'attack_type': {
-                        'in': ['XSS', 'Brute Force', 'Malware', 'Phishing']
-                    },
-                    'confidence': {'min': 0.6}
+                    'attack_type': {'in': ['Path Traversal']},
+                    'confidence': {'min': 0.5}
                 },
-                actions=['alert', 'notify_admin']
+                actions=['alert', 'block_ip', 'log_detailed']
             ),
             AlertRule(
-                rule_id='rule_003',
+                rule_id='SSRF-0009',
+                name='服务端请求伪造检测',
+                description='检测SSRF攻击，包括内网探测、云元数据访问等',
+                severity='High',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['SSRF']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin']
+            ),
+            AlertRule(
+                rule_id='UPLOAD-0010',
+                name='文件上传漏洞检测',
+                description='检测恶意文件上传攻击，包括webshell上传、可执行文件上传等',
+                severity='High',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['File Upload']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin']
+            ),
+            AlertRule(
+                rule_id='EXFIL-0011',
+                name='数据泄露检测',
+                description='检测数据外泄行为，包括批量导出、数据库下载等',
+                severity='High',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Data Exfiltration']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin', 'incident_response']
+            ),
+            # === Medium 级别 ===
+            AlertRule(
+                rule_id='CSRF-0012',
+                name='跨站请求伪造检测',
+                description='检测CSRF攻击，包括伪造表单提交、恶意链接等',
+                severity='Medium',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['CSRF']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='BRUTE-0013',
+                name='暴力破解攻击检测',
+                description='检测暴力破解攻击，包括字典攻击、凭证填充等',
+                severity='Medium',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Brute Force']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'block_ip', 'notify_admin']
+            ),
+            AlertRule(
+                rule_id='IDOR-0014',
+                name='不安全的直接对象引用检测',
+                description='检测IDOR攻击，包括越权访问、水平/垂直权限提升等',
+                severity='Medium',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['IDOR']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='SESSFIX-0015',
+                name='会话固定攻击检测',
+                description='检测会话固定攻击，包括会话ID劫持、会话重放等',
+                severity='Medium',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Session Fixation']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='OPENRED-0016',
+                name='开放重定向攻击检测',
+                description='检测开放重定向攻击，包括钓鱼链接构造等',
+                severity='Medium',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Open Redirect']},
+                    'confidence': {'min': 0.5}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='APIABU-0017',
+                name='API滥用检测',
+                description='检测API滥用行为，包括速率限制绕过、批量请求等',
+                severity='Medium',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['API Abuse']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'rate_limit', 'monitor']
+            ),
+            # === Low 级别 ===
+            AlertRule(
+                rule_id='DOS-0018',
+                name='拒绝服务攻击检测',
+                description='检测DoS/DDoS攻击，包括慢速攻击、洪水攻击、反射放大攻击等',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['DoS/DDoS']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'rate_limit', 'monitor']
+            ),
+            AlertRule(
+                rule_id='PARPOL-0019',
+                name='参数污染攻击检测',
+                description='检测HTTP参数污染攻击，包括重复参数、参数覆盖等',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Parameter Pollution']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'monitor']
+            ),
+            AlertRule(
+                rule_id='HDRINJ-0020',
+                name='HTTP头注入攻击检测',
+                description='检测HTTP头注入攻击，包括CRLF注入、头覆盖等',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Header Injection']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='CRLF-0021',
+                name='CRLF注入攻击检测',
+                description='检测CRLF注入攻击，包括HTTP响应拆分、头注入等',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['CRLF Injection']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='HOSTINJ-0022',
+                name='Host头注入攻击检测',
+                description='检测Host头注入攻击，包括密码重置劫持、缓存投毒等',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Host Header Injection']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'log_detailed']
+            ),
+            AlertRule(
+                rule_id='PROTO-0023',
+                name='协议降级攻击检测',
+                description='检测协议降级攻击，包括TLS降级、HTTP降级等',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Protocol Downgrade']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'monitor']
+            ),
+            AlertRule(
+                rule_id='SCRAP-0024',
+                name='Web爬虫/抓取检测',
+                description='检测恶意Web爬虫和数据抓取行为',
+                severity='Low',
+                enabled=True,
+                conditions={
+                    'attack_type': {'in': ['Web Scraping']},
+                    'confidence': {'min': 0.4}
+                },
+                actions=['alert', 'rate_limit', 'monitor']
+            ),
+            # === 通用/行为规则 ===
+            AlertRule(
+                rule_id='ANOMALY-0025',
                 name='异常行为检测',
-                description='检测异常的访问行为',
+                description='基于行为分析的异常检测，覆盖未知攻击模式',
                 severity='Medium',
                 enabled=True,
                 conditions={
                     'anomaly_score': {'min': 0.7},
                     'confidence': {'min': 0.5}
                 },
-                actions=['alert']
+                actions=['alert', 'monitor']
             ),
             AlertRule(
-                rule_id='rule_004',
-                name='敏感路径访问',
-                description='检测对敏感路径的访问',
+                rule_id='SENSPATH-0026',
+                name='敏感路径访问检测',
+                description='检测对敏感路径的未授权访问，包括管理后台、配置文件等',
                 severity='High',
                 enabled=True,
                 conditions={
                     'path': {
-                        'contains': ['/admin', '/api', '/config', '/backup']
+                        'contains': ['/admin', '/manager', '/config', '/backup', '/.env', '/.git', '/wp-admin', '/phpmyadmin']
                     },
-                    'attack_type': {
-                        'in': ['SQL Injection', 'XSS', 'Path Traversal']
-                    }
+                    'status_code': {'in': [200, 403]}
                 },
                 actions=['alert', 'log_detailed']
             ),
             AlertRule(
-                rule_id='rule_005',
-                name='高频错误检测',
-                description='检测高频错误请求',
+                rule_id='ERRFREQ-0027',
+                name='高频错误请求检测',
+                description='检测高频错误请求，可能表示扫描或探测行为',
                 severity='Medium',
                 enabled=True,
                 conditions={
                     'status_code': {'in': [400, 401, 403, 404, 500]},
-                    'confidence': {'min': 0.4}
+                    'confidence': {'min': 0.3}
                 },
                 actions=['alert', 'monitor']
             )

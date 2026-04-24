@@ -3,10 +3,12 @@
     "dashboard": "仪表盘",
     "logParser": "日志解析",
     "logsList": "日志列表",
+    "logAnalysis": "日志分析",
     "threatIntel": "威胁情报",
     "prediction": "攻击预测",
     "alerts": "告警管理",
     "dataSources": "数据源管理",
+    "dataSourceLogs": "数据源日志",
     "systemConfig": "系统配置"
   },
   "dashboard": {
@@ -73,7 +75,40 @@
     "anomalyScore": "异常分数",
     "actions": "操作",
     "viewDetails": "查看详情",
-    "noLogs": "未找到日志"
+    "noLogs": "未找到日志",
+    "detailTitle": "日志详情",
+    "id": "ID",
+    "sourceIp": "源IP",
+    "destinationIp": "目标IP",
+    "sourcePort": "源端口",
+    "destinationPort": "目标端口",
+    "protocol": "协议",
+    "query": "查询参数",
+    "rawLog": "原始日志",
+    "threatIndicators": "威胁指标",
+    "ruleAnalysis": "规则分析"
+  },
+  "logAnalysis": {
+    "title": "日志分析",
+    "analyze": "分析",
+    "logFormat": "日志格式",
+    "selectLogFormat": "选择日志格式",
+    "severity": "严重程度",
+    "selectSeverity": "选择严重程度",
+    "timeRange": "时间范围",
+    "statistics": "统计信息",
+    "totalLogs": "总日志数",
+    "anomalyLogs": "异常日志数",
+    "attackPercentage": "攻击占比",
+    "logFormatDistribution": "日志格式分布",
+    "attackTypeDistribution": "攻击类型分布",
+    "attackTrend24h": "24小时攻击趋势",
+    "severityDistribution": "严重程度分布",
+    "recentLogs": "最近日志",
+    "attackType": "攻击类型",
+    "count": "数量",
+    "threatSources": "威胁来源",
+    "ruleAnalysis": "规则分析"
   },
   "threatIntel": {
     "title": "威胁情报",
@@ -322,6 +357,8 @@
       "status": "状态",
       "logs": "日志数量",
       "lastConnected": "最后连接",
+      "lastLogReceived": "最后接收日志",
+      "lastSourceIP": "最后来源IP",
       "actions": "操作",
       "id": "ID"
     },
@@ -367,6 +404,8 @@
         "title": "Syslog配置",
         "host": "监听地址",
         "port": "监听端口",
+        "portRequired": "请输入监听端口",
+        "portRange": "端口必须在1-65535之间",
         "protocol": "协议",
         "protocols": {
           "udp": "UDP",
@@ -430,8 +469,16 @@
       "status": "状态",
       "processed": "已处理",
       "pending": "待处理",
-      "noLogs": "暂无接收到的日志"
-    }
+      "noLogs": "暂无接收到的日志",
+      "total": "总计",
+      "recent5m": "最近5分钟",
+      "threats": "威胁"
+    },
+    "justNow": "刚刚",
+    "minutesAgo": "分钟前",
+    "hoursAgo": "小时前",
+    "daysAgo": "天前",
+    "unknown": "未知"
   },
   "alerts": {
     "title": "告警管理",
@@ -477,5 +524,33 @@
     "items": "条",
     "duplicate": "重复",
     "aggregated": "聚合"
+  },
+  "dataSourceLogs": {
+    "title": "数据源日志详情",
+    "selectDataSource": "选择数据源",
+    "id": "ID",
+    "sourceId": "数据源ID",
+    "receivedAt": "接收时间",
+    "ip": "IP地址",
+    "rawLog": "原始日志",
+    "parsedLog": "解析后日志",
+    "processed": "已处理",
+    "errorMessage": "错误信息",
+    "actions": "操作",
+    "viewDetail": "查看详情",
+    "logDetail": "日志详情",
+    "yes": "是",
+    "no": "否",
+    "filters": {
+      "title": "日志筛选",
+      "startTime": "开始时间",
+      "endTime": "结束时间",
+      "processedStatus": "处理状态",
+      "errorStatus": "错误状态",
+      "keyword": "关键词搜索",
+      "ip": "IP地址",
+      "reset": "重置",
+      "apply": "应用筛选"
+    }
   }
 }

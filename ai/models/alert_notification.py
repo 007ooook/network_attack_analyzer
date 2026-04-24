@@ -12,9 +12,10 @@ import time
 class AlertNotificationChannel:
     """告警通知渠道基类"""
     
-    def __init__(self, name: str, enabled: bool = True):
+    def __init__(self, name: str, enabled: bool = True, severity_filter: List[str] = None):
         self.name = name
         self.enabled = enabled
+        self.severity_filter = severity_filter or []  # 空列表表示不过滤
     
     def send(self, alert: Dict[str, Any]) -> bool:
         """发送告警通知"""
@@ -23,6 +24,19 @@ class AlertNotificationChannel:
     def is_enabled(self) -> bool:
         """检查通知渠道是否启用"""
         return self.enabled
+    
+    def should_send(self, alert: Dict[str, Any]) -> bool:
+        """检查是否应该发送此告警"""
+        if not self.is_enabled():
+            return False
+        
+        # 检查严重程度过滤
+        if self.severity_filter:
+            severity = alert.get('severity', 'Medium')
+            if severity not in self.severity_filter:
+                return False
+        
+        return True
 
 
 class EmailNotificationChannel(AlertNotificationChannel):
@@ -48,7 +62,7 @@ class EmailNotificationChannel(AlertNotificationChannel):
     
     def send(self, alert: Dict[str, Any]) -> bool:
         """发送邮件通知"""
-        if not self.is_enabled():
+        if not self.should_send(alert):
             return False
         
         try:
@@ -102,7 +116,7 @@ class WebhookNotificationChannel(AlertNotificationChannel):
     
     def send(self, alert: Dict[str, Any]) -> bool:
         """发送Webhook通知"""
-        if not self.is_enabled():
+        if not self.should_send(alert):
             return False
         
         try:
@@ -143,16 +157,17 @@ class SlackNotificationChannel(AlertNotificationChannel):
         webhook_url: str,
         channel: str = '#alerts',
         username: str = 'Security Bot',
-        enabled: bool = True
+        enabled: bool = True,
+        severity_filter: List[str] = None
     ):
-        super().__init__('Slack', enabled)
+        super().__init__('Slack', enabled, severity_filter)
         self.webhook_url = webhook_url
         self.channel = channel
         self.username = username
     
     def send(self, alert: Dict[str, Any]) -> bool:
         """发送Slack通知"""
-        if not self.is_enabled():
+        if not self.should_send(alert):
             return False
         
         try:
@@ -209,6 +224,62 @@ class SlackNotificationChannel(AlertNotificationChannel):
                 return False
         except Exception as e:
             print(f"Slack通知发送失败: {e}")
+            return False
+
+
+class TelegramNotificationChannel(AlertNotificationChannel):
+    """Telegram通知渠道"""
+    
+    def __init__(
+        self,
+        bot_token: str,
+        chat_id: str,
+        enabled: bool = True,
+        severity_filter: List[str] = None
+    ):
+        super().__init__('Telegram', enabled, severity_filter)
+        self.bot_token = bot_token
+        self.chat_id = chat_id
+    
+    def send(self, alert: Dict[str, Any]) -> bool:
+        """发送Telegram通知"""
+        if not self.should_send(alert):
+            return False
+        
+        try:
+            base_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+            
+            severity = alert.get('severity', 'Medium')
+            attack_type = alert.get('attack_type', 'Unknown')
+            source_ip = alert.get('source_ip', 'Unknown')
+            confidence = alert.get('confidence', 0)
+            description = alert.get('description', '')
+            timestamp = alert.get('created_at', datetime.now().isoformat())
+            
+            message = f"🚨 *安全告警* 🚨\n\n" \
+                      f"*严重程度:* {severity}\n" \
+                      f"*攻击类型:* {attack_type}\n" \
+                      f"*源IP:* {source_ip}\n" \
+                      f"*置信度:* {confidence:.2%}\n" \
+                      f"*描述:* {description}\n" \
+                      f"*时间:* {timestamp}"
+            
+            payload = {
+                'chat_id': self.chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }
+            
+            response = requests.post(base_url, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                print(f"Telegram通知发送成功: {alert.get('attack_type')}")
+                return True
+            else:
+                print(f"Telegram通知发送失败: HTTP {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"Telegram通知发送失败: {e}")
             return False
 
 
@@ -316,8 +387,13 @@ class AlertNotificationManager:
         self.response_actions: List[AlertResponseAction] = []
         self.notification_history: List[Dict[str, Any]] = []
         self.notification_queue = []
+        self.retry_queue = []
         self.worker_thread = None
+        self.retry_thread = None
         self.running = False
+        self.retry_running = False
+        self.retry_delay = 60  # 重试延迟（秒）
+        self.max_retries = 3  # 最大重试次数
     
     def add_notification_channel(self, channel: AlertNotificationChannel) -> None:
         """添加通知渠道"""
@@ -352,9 +428,18 @@ class AlertNotificationManager:
         results = {}
         
         for channel in self.notification_channels:
-            if channel.is_enabled():
+            if channel.should_send(alert):
                 success = channel.send(alert)
                 results[channel.name] = success
+                
+                # 如果发送失败，加入重试队列
+                if not success:
+                    self.retry_queue.append({
+                        'alert': alert,
+                        'channel': channel,
+                        'retries': 0,
+                        'timestamp': datetime.now().isoformat()
+                    })
         
         # 记录通知历史
         self.notification_history.append({
@@ -363,6 +448,10 @@ class AlertNotificationManager:
             'channels': results,
             'alert': alert
         })
+        
+        # 启动重试线程
+        if self.retry_queue and not (self.retry_thread and self.retry_thread.is_alive()):
+            self.start_retry_worker()
         
         return results
     
@@ -388,6 +477,23 @@ class AlertNotificationManager:
             'alert': alert
         }
     
+    def process_batch_alerts(self, alerts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """批量处理告警"""
+        results = []
+        
+        for alert in alerts:
+            try:
+                result = self.process_alert(alert)
+                results.append(result)
+            except Exception as e:
+                print(f"处理告警时出错: {e}")
+                results.append({
+                    'error': str(e),
+                    'alert': alert
+                })
+        
+        return results
+    
     def start_background_worker(self) -> None:
         """启动后台工作线程"""
         if self.worker_thread is None or not self.worker_thread.is_alive():
@@ -403,6 +509,21 @@ class AlertNotificationManager:
             self.worker_thread.join(timeout=5)
             print("告警通知后台工作线程已停止")
     
+    def start_retry_worker(self) -> None:
+        """启动重试工作线程"""
+        if self.retry_thread is None or not self.retry_thread.is_alive():
+            self.retry_running = True
+            self.retry_thread = threading.Thread(target=self._retry_worker, daemon=True)
+            self.retry_thread.start()
+            print("告警通知重试工作线程已启动")
+    
+    def stop_retry_worker(self) -> None:
+        """停止重试工作线程"""
+        self.retry_running = False
+        if self.retry_thread and self.retry_thread.is_alive():
+            self.retry_thread.join(timeout=5)
+            print("告警通知重试工作线程已停止")
+    
     def _background_worker(self) -> None:
         """后台工作线程"""
         while self.running:
@@ -415,6 +536,50 @@ class AlertNotificationManager:
             
             time.sleep(1)
     
+    def _retry_worker(self) -> None:
+        """重试工作线程"""
+        while self.retry_running:
+            if self.retry_queue:
+                retry_item = self.retry_queue.pop(0)
+                alert = retry_item['alert']
+                channel = retry_item['channel']
+                retries = retry_item['retries']
+                
+                # 检查是否超过最大重试次数
+                if retries >= self.max_retries:
+                    print(f"通知 {channel.name} 超过最大重试次数，放弃重试")
+                    continue
+                
+                # 检查是否达到重试延迟
+                retry_time = datetime.fromisoformat(retry_item['timestamp'])
+                if datetime.now() - retry_time < timedelta(seconds=self.retry_delay):
+                    # 还没到重试时间，放回队列
+                    self.retry_queue.append(retry_item)
+                    time.sleep(1)
+                    continue
+                
+                # 尝试重试
+                try:
+                    print(f"尝试重试通知 {channel.name}，第 {retries + 1} 次")
+                    success = channel.send(alert)
+                    
+                    if success:
+                        print(f"重试通知 {channel.name} 成功")
+                    else:
+                        # 重试失败，增加重试次数并重新加入队列
+                        retry_item['retries'] += 1
+                        retry_item['timestamp'] = datetime.now().isoformat()
+                        self.retry_queue.append(retry_item)
+                        print(f"重试通知 {channel.name} 失败，将在 {self.retry_delay} 秒后再次尝试")
+                except Exception as e:
+                    print(f"重试通知时出错: {e}")
+                    # 出错也视为失败，增加重试次数并重新加入队列
+                    retry_item['retries'] += 1
+                    retry_item['timestamp'] = datetime.now().isoformat()
+                    self.retry_queue.append(retry_item)
+            
+            time.sleep(1)
+    
     def queue_alert(self, alert: Dict[str, Any]) -> None:
         """将告警加入处理队列"""
         self.notification_queue.append(alert)
@@ -422,13 +587,34 @@ class AlertNotificationManager:
         if not self.worker_thread or not self.worker_thread.is_alive():
             self.start_background_worker()
     
+    def queue_batch_alerts(self, alerts: List[Dict[str, Any]]) -> None:
+        """批量将告警加入处理队列"""
+        for alert in alerts:
+            self.notification_queue.append(alert)
+        
+        if not self.worker_thread or not self.worker_thread.is_alive():
+            self.start_background_worker()
+    
     def get_notification_history(
         self,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        channel: str = None,
+        status: str = None
     ) -> List[Dict[str, Any]]:
         """获取通知历史"""
-        return self.notification_history[offset:offset + limit]
+        filtered_history = self.notification_history
+        
+        if channel:
+            filtered_history = [h for h in filtered_history if channel in h['channels']]
+        
+        if status:
+            if status == 'success':
+                filtered_history = [h for h in filtered_history if all(v for v in h['channels'].values())]
+            elif status == 'failed':
+                filtered_history = [h for h in filtered_history if any(not v for v in h['channels'].values())]
+        
+        return filtered_history[offset:offset + limit]
     
     def get_statistics(self) -> Dict[str, Any]:
         """获取通知统计信息"""
@@ -446,9 +632,17 @@ class AlertNotificationManager:
                 else:
                     channel_stats[channel]['failed'] += 1
         
+        # 计算成功率
+        for channel, stats in channel_stats.items():
+            if stats['total'] > 0:
+                stats['success_rate'] = (stats['success'] / stats['total']) * 100
+            else:
+                stats['success_rate'] = 0
+        
         return {
             'total_notifications': total_notifications,
             'channel_statistics': channel_stats,
             'active_channels': len([c for c in self.notification_channels if c.is_enabled()]),
-            'active_actions': len([a for a in self.response_actions if a.is_enabled()])
+            'active_actions': len([a for a in self.response_actions if a.is_enabled()]),
+            'pending_retries': len(self.retry_queue)
         }

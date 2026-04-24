@@ -5,3 +5,5 @@ numpy
 joblib
 requests
 pandas
+psutil
+PyJWT

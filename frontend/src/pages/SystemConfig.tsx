@@ -1,105 +1,96 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Card, Form, Input, Button, message, Select, Switch, Divider, Typography, Spin } from 'antd';
+import { Card, Form, Input, Button, message, Select, Switch, Divider, Typography, Spin, Popconfirm, Space, Row, Col, Statistic, Progress, Tag } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { SyncOutlined } from '@ant-design/icons';
+import { SyncOutlined, DeleteOutlined, SaveOutlined, DashboardOutlined, CloudServerOutlined, DatabaseOutlined, FileTextOutlined, CheckCircleOutlined, SafetyOutlined, LockOutlined } from '@ant-design/icons';
+import { api } from '../utils/api';
 
 const { Option } = Select;
 const { Title } = Typography;
 
-const API_BASE_URL = 'http://localhost:8006/api';
-
 const SystemConfig: React.FC = () => {
   const [form] = Form.useForm();
+  const [securityForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [systemHealth, setSystemHealth] = useState<any>({
+    cpu_usage: 0,
+    memory_usage: 0,
+    disk_usage: 0,
+    db_size: 0,
+    log_count: 0
+  });
   const { t } = useTranslation();
   const healthTimerRef = useRef<number | null>(null);
 
-  // 加载系统配置
+  const DEFAULT_CONFIG = {
+    api_url: 'http://localhost:8003/api',
+    log_retention_days: 30,
+    max_log_size: 100,
+    enable_email_alert: true,
+    email_recipients: 'admin@example.com',
+    alert_threshold: 0.7,
+    model_version: '1.0.0',
+    enable_rate_limiting: true,
+    rate_limit: 1000,
+    enable_ip_blocking: true,
+    block_duration: 3600,
+    enable_ssl: false,
+    ssl_cert_path: '',
+    ssl_key_path: '',
+    enable_cors: true,
+    allowed_origins: '*',
+    api_key: ''
+  };
+
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/config`);
-      if (response.ok) {
-        const data = await response.json();
-        form.setFieldsValue(data.config);
-      } else {
-        // 使用默认配置
-        form.setFieldsValue({
-          api_url: 'http://localhost:8003/api',
-          log_retention_days: 30,
-          max_log_size: 100,
-          enable_email_alert: true,
-          email_recipients: 'admin@example.com',
-          alert_threshold: 0.7,
-          model_version: '1.0.0',
-          enable_rate_limiting: true,
-          rate_limit: 1000,
-          enable_ip_blocking: true,
-          block_duration: 3600,
-          enable_ssl: false,
-          ssl_cert_path: '',
-          ssl_key_path: '',
-          enable_cors: true,
-          allowed_origins: '*',
-          api_key: ''
-        });
-      }
+      const { data } = await api.get('/config');
+      form.setFieldsValue(data.config || DEFAULT_CONFIG);
     } catch (error) {
       console.error('Error loading config:', error);
       message.error(t('common.error'));
-      // 使用默认配置
-        form.setFieldsValue({
-          api_url: 'http://localhost:8003/api',
-          log_retention_days: 30,
-          max_log_size: 100,
-          enable_email_alert: true,
-          email_recipients: 'admin@example.com',
-          alert_threshold: 0.7,
-          model_version: '1.0.0',
-          enable_rate_limiting: true,
-          rate_limit: 1000,
-          enable_ip_blocking: true,
-          block_duration: 3600,
-          enable_ssl: false,
-          ssl_cert_path: '',
-          ssl_key_path: '',
-          enable_cors: true,
-          allowed_origins: '*',
-          api_key: ''
-        });
+      form.setFieldsValue(DEFAULT_CONFIG);
     } finally {
       setLoading(false);
     }
   };
 
-  // 加载系统健康状态
   const loadSystemHealth = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/system-health`);
-      if (response.ok) {
-        const data = await response.json();
-        setSystemHealth(data);
-      } else {
-        // 响应失败时使用默认值
-        setSystemHealth({
-          cpu_usage: 0,
-          memory_usage: 0,
-          disk_usage: 0,
-          db_size: 0,
-          log_count: 0
-        });
-      }
+      const { data } = await api.get('/system-health');
+      setSystemHealth(data);
     } catch (error) {
       console.error('Error loading system health:', error);
-      // 错误时使用默认值
-      setSystemHealth({
-        cpu_usage: 0,
-        memory_usage: 0,
-        disk_usage: 0,
-        db_size: 0,
-        log_count: 0
-      });
+      setSystemHealth({ cpu_usage: 0, memory_usage: 0, disk_usage: 0, db_size: 0, log_count: 0 });
+    }
+  };
+
+  const loadSecurityConfig = async () => {
+    try {
+      const { data } = await api.get('/security-config');
+      if (data.success) {
+        securityForm.setFieldsValue(data.config);
+      }
+    } catch (error) {
+      console.error('Error loading security config:', error);
+    }
+  };
+
+  const handleSaveAccountSecurityConfig = async () => {
+    try {
+      setLoading(true);
+      const values = await securityForm.validateFields();
+      const { data } = await api.post('/security-config', values);
+      if (data.success) {
+        message.success('账号安全配置已保存');
+      } else {
+        message.error(data.error || '保存失败');
+      }
+    } catch (error) {
+      console.error('Error saving security config:', error);
+      message.error('保存失败');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,6 +98,7 @@ const SystemConfig: React.FC = () => {
   useEffect(() => {
     loadConfig();
     loadSystemHealth();
+    loadSecurityConfig();
     
     // 设置定时刷新，每3秒更新一次系统健康状态
     healthTimerRef.current = setInterval(() => {
@@ -122,151 +114,52 @@ const SystemConfig: React.FC = () => {
     };
   }, []);
 
-  // 保存API配置
-  const handleSaveApiConfig = async () => {
+  const handleResetConfig = async (section: string) => {
     try {
       setLoading(true);
-      const values = await form.validateFields(['api_url', 'enable_cors', 'allowed_origins']);
-      const response = await fetch(`${API_BASE_URL}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(values)
-      });
-      if (response.ok) {
-        message.success(t('systemConfig.saveSuccess'));
+      const { data } = await api.post('/config/reset', { section });
+      if (data.success) {
+        message.success(`${section}配置已重置为默认值`);
+        loadConfig();
       } else {
-        message.error(t('systemConfig.saveError'));
+        message.error(data.error || '重置失败');
       }
     } catch (error) {
-      console.error('Error updating API config:', error);
+      console.error('Error resetting config:', error);
+      message.error('重置失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const postConfig = async (fields: string[], successMsg: string) => {
+    try {
+      setLoading(true);
+      const values = await form.validateFields(fields);
+      await api.post('/config', values);
+      message.success(successMsg);
+    } catch (error) {
+      console.error('Error updating config:', error);
       message.error(t('systemConfig.saveError'));
     } finally {
       setLoading(false);
     }
   };
 
-  // 保存日志配置
-  const handleSaveLogConfig = async () => {
-    try {
-      setLoading(true);
-      const values = await form.validateFields(['log_retention_days', 'max_log_size']);
-      const response = await fetch(`${API_BASE_URL}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(values)
-      });
-      if (response.ok) {
-        message.success(t('systemConfig.saveSuccess'));
-      } else {
-        message.error(t('systemConfig.saveError'));
-      }
-    } catch (error) {
-      console.error('Error updating log config:', error);
-      message.error(t('systemConfig.saveError'));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleSaveApiConfig = () => postConfig(['api_url', 'enable_cors', 'allowed_origins'], t('systemConfig.saveSuccess'));
+  const handleSaveLogConfig = () => postConfig(['log_retention_days', 'max_log_size'], t('systemConfig.saveSuccess'));
+  const handleSaveAlertConfig = () => postConfig(['enable_email_alert', 'email_recipients', 'alert_threshold'], t('systemConfig.saveSuccess'));
+  const handleSaveSecurityConfig = () => postConfig(['enable_rate_limiting', 'rate_limit', 'enable_ip_blocking', 'block_duration', 'enable_ssl', 'ssl_cert_path', 'ssl_key_path'], t('systemConfig.saveSuccess'));
+  const handleSaveAiConfig = () => postConfig(['model_version'], t('systemConfig.saveSuccess'));
+  const handleSaveThreatIntelConfig = () => postConfig(['api_key'], t('systemConfig.saveSuccess'));
 
-  // 保存告警配置
-  const handleSaveAlertConfig = async () => {
-    try {
-      setLoading(true);
-      const values = await form.validateFields(['enable_email_alert', 'email_recipients', 'alert_threshold']);
-      const response = await fetch(`${API_BASE_URL}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(values)
-      });
-      if (response.ok) {
-        message.success(t('systemConfig.saveSuccess'));
-      } else {
-        message.error(t('systemConfig.saveError'));
-      }
-    } catch (error) {
-      console.error('Error updating alert config:', error);
-      message.error(t('systemConfig.saveError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 保存安全配置
-  const handleSaveSecurityConfig = async () => {
-    try {
-      setLoading(true);
-      const values = await form.validateFields(['enable_rate_limiting', 'rate_limit', 'enable_ip_blocking', 'block_duration', 'enable_ssl', 'ssl_cert_path', 'ssl_key_path']);
-      const response = await fetch(`${API_BASE_URL}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(values)
-      });
-      if (response.ok) {
-        message.success(t('systemConfig.saveSuccess'));
-      } else {
-        message.error(t('systemConfig.saveError'));
-      }
-    } catch (error) {
-      console.error('Error updating security config:', error);
-      message.error(t('systemConfig.saveError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 保存AI模型配置
-  const handleSaveAiConfig = async () => {
-    try {
-      setLoading(true);
-      const values = await form.validateFields(['model_version']);
-      const response = await fetch(`${API_BASE_URL}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(values)
-      });
-      if (response.ok) {
-        message.success(t('systemConfig.saveSuccess'));
-      } else {
-        message.error(t('systemConfig.saveError'));
-      }
-    } catch (error) {
-      console.error('Error updating AI config:', error);
-      message.error(t('systemConfig.saveError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 测试威胁情报API配置
   const handleTestThreatIntelConfig = async () => {
     try {
       setLoading(true);
       const values = await form.validateFields(['api_key']);
-      
-      // 使用第一个IP进行测试
       message.loading({ content: '正在测试API连接...', key: 'test-api', duration: 0 });
-      
-      const response = await fetch(`${API_BASE_URL}/test-threat-intel`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ api_key: values.api_key })
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok && data.success) {
+      const { data } = await api.post('/test-threat-intel', { api_key: values.api_key });
+      if (data.success) {
         message.success(`API测试成功: ${data.message}`);
       } else {
         message.error(`API测试失败: ${data.error || '未知错误'}`);
@@ -274,31 +167,6 @@ const SystemConfig: React.FC = () => {
     } catch (error: any) {
       console.error('Error testing threat intel config:', error);
       message.error(`API测试失败: ${error.message || '网络错误'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 保存威胁情报配置
-  const handleSaveThreatIntelConfig = async () => {
-    try {
-      setLoading(true);
-      const values = await form.validateFields(['api_key']);
-      const response = await fetch(`${API_BASE_URL}/config`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(values)
-      });
-      if (response.ok) {
-        message.success(t('systemConfig.saveSuccess'));
-      } else {
-        message.error(t('systemConfig.saveError'));
-      }
-    } catch (error) {
-      console.error('Error updating threat intel config:', error);
-      message.error(t('systemConfig.saveError'));
     } finally {
       setLoading(false);
     }
@@ -321,9 +189,14 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
             
             <Form.Item>
-              <Button type="primary" onClick={handleSaveApiConfig} loading={loading}>
-                {t('common.save')}
-              </Button>
+              <Space>
+                <Button type="primary" onClick={handleSaveApiConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+                <Popconfirm title="确定要重置API配置为默认值吗？" onConfirm={() => handleResetConfig('api')} okText="确定" cancelText="取消">
+                  <Button type="primary" icon={<DeleteOutlined />}>重置配置</Button>
+                </Popconfirm>
+              </Space>
             </Form.Item>
             
             <Divider />
@@ -336,9 +209,14 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
             
             <Form.Item>
-              <Button type="primary" onClick={handleSaveLogConfig} loading={loading}>
-                {t('common.save')}
-              </Button>
+              <Space>
+                <Button type="primary" onClick={handleSaveLogConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+                <Popconfirm title="确定要重置日志配置为默认值吗？" onConfirm={() => handleResetConfig('log')} okText="确定" cancelText="取消">
+                  <Button type="primary" icon={<DeleteOutlined />}>重置配置</Button>
+                </Popconfirm>
+              </Space>
             </Form.Item>
             
             <Divider />
@@ -354,9 +232,14 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
             
             <Form.Item>
-              <Button type="primary" onClick={handleSaveAlertConfig} loading={loading}>
-                {t('common.save')}
-              </Button>
+              <Space>
+                <Button type="primary" onClick={handleSaveAlertConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+                <Popconfirm title="确定要重置告警配置为默认值吗？" onConfirm={() => handleResetConfig('alert')} okText="确定" cancelText="取消">
+                  <Button type="primary" icon={<DeleteOutlined />}>重置配置</Button>
+                </Popconfirm>
+              </Space>
             </Form.Item>
             
             <Divider />
@@ -384,9 +267,108 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
             
             <Form.Item>
-              <Button type="primary" onClick={handleSaveSecurityConfig} loading={loading}>
-                {t('common.save')}
-              </Button>
+              <Space>
+                <Button type="primary" onClick={handleSaveSecurityConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+                <Popconfirm title="确定要重置安全配置为默认值吗？" onConfirm={() => handleResetConfig('security')} okText="确定" cancelText="取消">
+                  <Button type="primary" icon={<DeleteOutlined />}>重置配置</Button>
+                </Popconfirm>
+              </Space>
+            </Form.Item>
+            
+            <Divider />
+            <Title level={5}><SafetyOutlined style={{ marginRight: 8, color: '#1890ff' }} />账号安全配置</Title>
+            <Card size="small" style={{ background: '#fafafa', marginBottom: 16 }}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#333' }}>
+                  <LockOutlined style={{ marginRight: 6, color: '#1890ff' }} />密码复杂度要求
+                </div>
+                <Row gutter={[16, 16]}>
+                  <Col span={12}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="password_min_length" label="密码最小长度" rules={[{ required: true, message: '请输入密码最小长度' }]}>
+                        <Input type="number" min={4} max={32} placeholder="8" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                  <Col span={12}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="password_history_count" label="密码历史数量" rules={[{ required: true, message: '请输入密码历史数量' }]}>
+                        <Input type="number" min={0} max={10} placeholder="3" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                </Row>
+                <Row gutter={[16, 16]}>
+                  <Col span={6}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="password_require_uppercase" label="要求大写字母" valuePropName="checked">
+                        <Switch checkedChildren="是" unCheckedChildren="否" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                  <Col span={6}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="password_require_lowercase" label="要求小写字母" valuePropName="checked">
+                        <Switch checkedChildren="是" unCheckedChildren="否" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                  <Col span={6}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="password_require_digit" label="要求数字" valuePropName="checked">
+                        <Switch checkedChildren="是" unCheckedChildren="否" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                  <Col span={6}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="password_require_special" label="要求特殊字符" valuePropName="checked">
+                        <Switch checkedChildren="是" unCheckedChildren="否" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                </Row>
+              </div>
+            </Card>
+            <Card size="small" style={{ background: '#fafafa', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12, color: '#333' }}>
+                  <SafetyOutlined style={{ marginRight: 6, color: '#1890ff' }} />登录安全策略
+                </div>
+                <Row gutter={[16, 16]}>
+                  <Col span={8}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="max_login_attempts" label="最大登录尝试次数" rules={[{ required: true, message: '请输入最大登录尝试次数' }]}>
+                        <Input type="number" min={1} max={20} placeholder="5" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                  <Col span={8}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="lockout_duration" label="锁定时长（秒）" rules={[{ required: true, message: '请输入锁定时长' }]}>
+                        <Input type="number" min={60} max={86400} placeholder="900" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                  <Col span={8}>
+                    <Form form={securityForm} layout="vertical">
+                      <Form.Item name="session_timeout" label="会话超时（秒）" rules={[{ required: true, message: '请输入会话超时时间' }]}>
+                        <Input type="number" min={300} max={86400} placeholder="3600" />
+                      </Form.Item>
+                    </Form>
+                  </Col>
+                </Row>
+              </div>
+            </Card>
+            
+            <Form.Item>
+              <Space>
+                <Button type="primary" onClick={handleSaveAccountSecurityConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+              </Space>
             </Form.Item>
             
             <Divider />
@@ -400,9 +382,14 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
             
             <Form.Item>
-              <Button type="primary" onClick={handleSaveAiConfig} loading={loading}>
-                {t('common.save')}
-              </Button>
+              <Space>
+                <Button type="primary" onClick={handleSaveAiConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+                <Popconfirm title="确定要重置AI模型配置为默认值吗？" onConfirm={() => handleResetConfig('ai')} okText="确定" cancelText="取消">
+                  <Button type="primary" icon={<DeleteOutlined />}>重置配置</Button>
+                </Popconfirm>
+              </Space>
             </Form.Item>
             
             <Divider />
@@ -412,95 +399,104 @@ const SystemConfig: React.FC = () => {
             </Form.Item>
             
             <Form.Item>
-              <Button type="primary" onClick={handleTestThreatIntelConfig} loading={loading} icon={<SyncOutlined />}>
-                {t('systemConfig.testApi')}
-              </Button>
-              <span style={{ marginLeft: '8px' }}></span>
-              <Button type="primary" onClick={handleSaveThreatIntelConfig} loading={loading}>
-                {t('common.save')}
-              </Button>
+              <Space>
+                <Button type="primary" onClick={handleTestThreatIntelConfig} loading={loading} icon={<SyncOutlined />}>
+                  {t('systemConfig.testApi')}
+                </Button>
+                <Button type="primary" onClick={handleSaveThreatIntelConfig} loading={loading} icon={<SaveOutlined />}>
+                  {t('common.save')}
+                </Button>
+                <Popconfirm title="确定要重置威胁情报配置为默认值吗？" onConfirm={() => handleResetConfig('threat_intel')} okText="确定" cancelText="取消">
+                  <Button type="primary" icon={<DeleteOutlined />}>重置配置</Button>
+                </Popconfirm>
+              </Space>
             </Form.Item>
           </Form>
         </Spin>
       </Card>
 
-      <Card title={
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {t('systemConfig.systemHealth')}
-          <span style={{ fontSize: '14px', color: '#1890ff' }}>
-            ⚡ {t('systemHealth.realTimeMonitoring')}
-          </span>
-        </div>
-      }>
-        {systemHealth ? (
-          <div className="card-grid">
-            <div className="stat-card">
-              <div className="stat-card-title">{t('systemHealth.cpuUsage')}</div>
-              <div className="stat-card-value" style={{ 
-                color: systemHealth.cpu_usage > 80 ? '#ff4d4f' : systemHealth.cpu_usage > 50 ? '#faad14' : '#1890ff' 
-              }}>
-                {systemHealth.cpu_usage}%
-              </div>
-              <div className="progress-bar" style={{ 
-                background: systemHealth.cpu_usage > 80 ? '#ffccc7' : systemHealth.cpu_usage > 50 ? '#ffe58f' : '#bae7ff' 
-              }}>
-                <div className="progress-fill" style={{ 
-                  width: `${systemHealth.cpu_usage}%`,
-                  background: systemHealth.cpu_usage > 80 ? '#ff4d4f' : systemHealth.cpu_usage > 50 ? '#faad14' : '#1890ff' 
-                }}></div>
-              </div>
-              <div className="stat-card-desc">{t('systemHealth.cpuUtilization')}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-title">{t('systemHealth.memoryUsage')}</div>
-              <div className="stat-card-value" style={{ 
-                color: systemHealth.memory_usage > 80 ? '#ff4d4f' : systemHealth.memory_usage > 50 ? '#faad14' : '#1890ff' 
-              }}>
-                {systemHealth.memory_usage}%
-              </div>
-              <div className="progress-bar" style={{ 
-                background: systemHealth.memory_usage > 80 ? '#ffccc7' : systemHealth.memory_usage > 50 ? '#ffe58f' : '#bae7ff' 
-              }}>
-                <div className="progress-fill" style={{ 
-                  width: `${systemHealth.memory_usage}%`,
-                  background: systemHealth.memory_usage > 80 ? '#ff4d4f' : systemHealth.memory_usage > 50 ? '#faad14' : '#1890ff' 
-                }}></div>
-              </div>
-              <div className="stat-card-desc">{t('systemHealth.memoryUtilization')}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-title">{t('systemHealth.diskUsage')}</div>
-              <div className="stat-card-value" style={{ 
-                color: systemHealth.disk_usage > 80 ? '#ff4d4f' : systemHealth.disk_usage > 50 ? '#faad14' : '#1890ff' 
-              }}>
-                {systemHealth.disk_usage}%
-              </div>
-              <div className="progress-bar" style={{ 
-                background: systemHealth.disk_usage > 80 ? '#ffccc7' : systemHealth.disk_usage > 50 ? '#ffe58f' : '#bae7ff' 
-              }}>
-                <div className="progress-fill" style={{ 
-                  width: `${systemHealth.disk_usage}%`,
-                  background: systemHealth.disk_usage > 80 ? '#ff4d4f' : systemHealth.disk_usage > 50 ? '#faad14' : '#1890ff' 
-                }}></div>
-              </div>
-              <div className="stat-card-desc">{t('systemHealth.diskUtilization')}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-title">{t('systemHealth.databaseSize')}</div>
-              <div className="stat-card-value">{systemHealth.db_size} MB</div>
-              <div className="stat-card-desc">{t('systemHealth.databaseStorage')}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-title">{t('systemHealth.logCount')}</div>
-              <div className="stat-card-value">{systemHealth.log_count}</div>
-              <div className="stat-card-desc">{t('systemHealth.totalLogs')}</div>
-            </div>
+      <Card 
+        title={t('systemConfig.systemHealth')} 
+        extra={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Tag icon={<CheckCircleOutlined />} color="success">运行中</Tag>
+            <Button type="primary" onClick={loadSystemHealth} icon={<SyncOutlined />} size="small">
+              刷新
+            </Button>
           </div>
-        ) : (
-          <div className="loading-container">
-            <Spin />
-          </div>
-        )}
+        }
+      >
+        <Row gutter={[24, 24]}>
+          <Col xs={24} sm={8}>
+            <div style={{ padding: '16px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, color: '#666' }}>
+                  <DashboardOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                  {t('systemHealth.cpuUsage')}
+                </span>
+                <span style={{ fontSize: 24, fontWeight: 600, color: systemHealth.cpu_usage > 80 ? '#ff4d4f' : systemHealth.cpu_usage > 50 ? '#faad14' : '#52c41a' }}>
+                  {systemHealth.cpu_usage}%
+                </span>
+              </div>
+              <Progress percent={systemHealth.cpu_usage} showInfo={false} strokeColor={{ '0%': '#1890ff', '100%': systemHealth.cpu_usage > 80 ? '#ff4d4f' : '#52c41a' }} />
+            </div>
+          </Col>
+          <Col xs={24} sm={8}>
+            <div style={{ padding: '16px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, color: '#666' }}>
+                  <CloudServerOutlined style={{ marginRight: 8, color: '#722ed1' }} />
+                  {t('systemHealth.memoryUsage')}
+                </span>
+                <span style={{ fontSize: 24, fontWeight: 600, color: systemHealth.memory_usage > 80 ? '#ff4d4f' : systemHealth.memory_usage > 50 ? '#faad14' : '#52c41a' }}>
+                  {systemHealth.memory_usage}%
+                </span>
+              </div>
+              <Progress percent={systemHealth.memory_usage} showInfo={false} strokeColor={{ '0%': '#722ed1', '100%': systemHealth.memory_usage > 80 ? '#ff4d4f' : '#52c41a' }} />
+            </div>
+          </Col>
+          <Col xs={24} sm={8}>
+            <div style={{ padding: '16px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, color: '#666' }}>
+                  <DatabaseOutlined style={{ marginRight: 8, color: '#13c2c2' }} />
+                  {t('systemHealth.diskUsage')}
+                </span>
+                <span style={{ fontSize: 24, fontWeight: 600, color: systemHealth.disk_usage > 80 ? '#ff4d4f' : systemHealth.disk_usage > 50 ? '#faad14' : '#52c41a' }}>
+                  {systemHealth.disk_usage}%
+                </span>
+              </div>
+              <Progress percent={systemHealth.disk_usage} showInfo={false} strokeColor={{ '0%': '#13c2c2', '100%': systemHealth.disk_usage > 80 ? '#ff4d4f' : '#52c41a' }} />
+            </div>
+          </Col>
+        </Row>
+        <Divider style={{ margin: '12px 0' }} />
+        <Row gutter={[24, 16]}>
+          <Col xs={12} sm={8}>
+            <Statistic
+              title={t('systemHealth.databaseSize')}
+              value={systemHealth.db_size}
+              suffix="MB"
+              prefix={<DatabaseOutlined />}
+              valueStyle={{ fontSize: 20 }}
+            />
+          </Col>
+          <Col xs={12} sm={8}>
+            <Statistic
+              title={t('systemHealth.logCount')}
+              value={systemHealth.log_count}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ fontSize: 20 }}
+            />
+          </Col>
+          <Col xs={24} sm={8}>
+            <div style={{ textAlign: 'center' }}>
+              <Tag color="processing" style={{ fontSize: 12, padding: '4px 8px' }}>
+                3秒自动刷新
+              </Tag>
+            </div>
+          </Col>
+        </Row>
       </Card>
     </div>
   );

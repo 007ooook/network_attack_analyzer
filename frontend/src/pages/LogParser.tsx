@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Form, Input, Button, message } from 'antd';
-import axios from 'axios';
+import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
-
-// API基础URL配置
-const API_BASE_URL = 'http://localhost:8006/api';
 
 const { TextArea } = Input;
 
@@ -17,12 +14,13 @@ const LogParser: React.FC = () => {
   const handleParse = async (values: any) => {
     setLoading(true);
     try {
-      const response = await axios.post(`${API_BASE_URL}/parse`, values.logs, {
+      const response = await api.post('/parse', values.logs, {
         headers: {
           'Content-Type': 'text/plain'
         }
       });
-      message.success(t('logParser.parseSuccess', { count: response.data.parsed.length }));
+      const parsedCount = response.data?.parsed?.length || 0;
+      message.success(t('logParser.parseSuccess', { count: parsedCount }));
       // 清空表单
       form.resetFields();
     } catch (error) {

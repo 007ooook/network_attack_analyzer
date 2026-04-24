@@ -15,9 +15,8 @@ import {
   ThunderboltOutlined,
   ReloadOutlined
 } from '@ant-design/icons';
+import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
-
-const API_BASE_URL = 'http://localhost:8006/api';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff6b6b', '#4ecdc4', '#45b7d1'];
 
@@ -36,12 +35,12 @@ const Dashboard: React.FC = () => {
   const loadAllData = async () => {
     try {
       const [statsRes, healthRes, alertStatsRes, threatRes, alertsRes, logsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/statistics`).then(r => r.json()).catch(() => ({})),
-        fetch(`${API_BASE_URL}/system-health`).then(r => r.json()).catch(() => ({})),
-        fetch(`${API_BASE_URL}/alerts/statistics`).then(r => r.json()).catch(() => ({})),
-        fetch(`${API_BASE_URL}/threat-intel-summary`).then(r => r.json()).catch(() => ({})),
-        fetch(`${API_BASE_URL}/alerts?limit=5`).then(r => r.json()).catch(() => ({})),
-        fetch(`${API_BASE_URL}/logs?limit=5`).then(r => r.json()).catch(() => ({})),
+        api.get('/statistics').then(r => r.data).catch(() => ({})),
+        api.get('/system-health').then(r => r.data).catch(() => ({})),
+        api.get('/alerts/statistics').then(r => r.data).catch(() => ({})),
+        api.get('/threat-intel-summary').then(r => r.data).catch(() => ({})),
+        api.get('/alerts?limit=5').then(r => r.data).catch(() => ({})),
+        api.get('/logs?limit=5').then(r => r.data).catch(() => ({})),
       ]);
 
       setStatistics(statsRes);

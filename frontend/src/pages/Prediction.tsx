@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, Table, message } from 'antd';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { api } from '../utils/api';
 import { useTranslation } from 'react-i18next';
 
 const Prediction: React.FC = () => {
@@ -8,18 +9,11 @@ const Prediction: React.FC = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const { t } = useTranslation();
 
-  // API基础URL
-const API_BASE_URL = 'http://localhost:8006/api';
-
   // 加载日志数据
   const loadLogs = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/logs?limit=100`);
-      if (response.ok) {
-        const data = await response.json();
-        return data.logs || [];
-      }
-      return [];
+      const { data } = await api.get('/logs?limit=100');
+      return data.logs || [];
     } catch (error) {
       console.error('Error loading logs:', error);
       return [];
@@ -159,20 +153,11 @@ const API_BASE_URL = 'http://localhost:8006/api';
   // 加载系统配置，获取模型版本
   const loadConfig = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/config`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.config && data.config.model_version) {
-          console.log('Loaded model version:', data.config.model_version);
-          return data.config.model_version;
-        } else {
-          console.error('Invalid config data:', data);
-          return '1.0.0';
-        }
-      } else {
-        console.error('Failed to load config:', response.status);
-        return '1.0.0';
+      const { data } = await api.get('/config');
+      if (data.config && data.config.model_version) {
+        return data.config.model_version;
       }
+      return '1.0.0';
     } catch (error) {
       console.error('Error loading config:', error);
       return '1.0.0';

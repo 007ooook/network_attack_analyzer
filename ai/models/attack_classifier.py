@@ -91,8 +91,8 @@ class EnhancedAttackClassifier:
         
         # 模型版本信息
         self.model_info = {
-            'version': '2.0',
-            'features': 41,
+            'version': '2.1',
+            'features': 52,
             'classifiers': len(self.attack_types),
             'last_trained': None,
             'performance': {
@@ -107,14 +107,15 @@ class EnhancedAttackClassifier:
         # 机器学习模型
         self.scaler = StandardScaler()
         self.ml_model = RandomForestClassifier(
-            n_estimators=200,  # 增加树的数量以提高准确率
-            max_depth=20,  # 增加树深度以捕获更复杂的模式
-            min_samples_split=5,
-            min_samples_leaf=2,
+            n_estimators=300,  # 增加树的数量以提高准确率
+            max_depth=25,  # 增加树深度以捕获更复杂的模式
+            min_samples_split=4,
+            min_samples_leaf=1,
             random_state=42,
             n_jobs=-1,
             bootstrap=True,
-            max_features='sqrt'
+            max_features='sqrt',
+            class_weight='balanced'  # 处理不平衡数据
         )
         self.feature_names = []
         
@@ -710,6 +711,65 @@ class EnhancedAttackClassifier:
         features['large_response'] = features['size'] > 10000
         features['empty_response'] = features['size'] == 0
         features['small_response'] = 0 < features['size'] < 100
+        features['medium_response'] = 100 <= features['size'] < 10000
+        
+        # 路径特征增强
+        features['path_has_executable'] = any(ext in path.lower() for ext in ['.php', '.asp', '.aspx', '.jsp', '.exe', '.bat', '.sh', '.py'])
+        features['path_has_admin'] = any(admin in path.lower() for admin in ['admin', 'login', 'auth', 'secure', 'manager', 'control'])
+        features['path_has_api'] = any(api in path.lower() for api in ['api', 'rest', 'graphql', 'rpc'])
+        features['path_has_upload'] = any(upload in path.lower() for upload in ['upload', 'file', 'attach'])
+        features['path_has_backup'] = any(backup in path.lower() for backup in ['backup', 'dump', 'archive', 'zip', 'tar', 'backup'])
+        features['path_has_config'] = any(config in path.lower() for config in ['config', 'setting', 'env', 'environment'])
+        
+        # 查询参数特征增强
+        if '?' in path:
+            query_string = path.split('?')[1]
+            features['query_has_sql'] = any(sql in query_string.lower() for sql in ['select', 'from', 'where', 'union', 'drop', 'insert', 'update', 'delete'])
+            features['query_has_xss'] = any(xss in query_string.lower() for xss in ['script', 'javascript:', 'onerror', 'onload'])
+            features['query_has_command'] = any(cmd in query_string.lower() for cmd in ['exec', 'system', 'shell', 'command', 'eval'])
+            features['query_has_path'] = any(path in query_string.lower() for path in ['../', '..\\', '..%2f', '..%5c'])
+            features['query_param_count'] = len(parse_qs(query_string))
+        else:
+            features['query_has_sql'] = False
+            features['query_has_xss'] = False
+            features['query_has_command'] = False
+            features['query_has_path'] = False
+            features['query_param_count'] = 0
+        
+        raw_log = str(log_entry.get('raw_log', ''))
+        post_data = str(log_entry.get('post_data', ''))
+        ua = features['user_agent']
+        ref = features['referer']
+        content = f"{path} {ua} {ref} {raw_log} {post_data}"
+        
+        # HTTP头部特征
+        headers = log_entry.get('headers', {})
+        features['has_user_agent'] = bool(features['user_agent']) and features['user_agent'] != '-'
+        features['has_referer'] = bool(features['referer']) and features['referer'] != '-'
+        features['has_cookie'] = bool(headers.get('Cookie') or headers.get('cookie'))
+        features['has_authorization'] = bool(headers.get('Authorization') or headers.get('authorization'))
+        features['has_content_type'] = bool(headers.get('Content-Type') or headers.get('content-type'))
+        
+        # 安全相关特征
+        features['has_security_headers'] = bool(
+            headers.get('X-XSS-Protection') or 
+            headers.get('X-Content-Type-Options') or 
+            headers.get('Content-Security-Policy') or
+            headers.get('Strict-Transport-Security')
+        )
+        
+        # 攻击特征增强
+        features['has_sql_injection'] = any(sql in content.lower() for sql in ['select', 'from', 'where', 'union', 'drop', 'insert', 'update', 'delete', '1=1', '--', '/*'])
+        features['has_xss'] = any(xss in content.lower() for xss in ['<script', 'javascript:', 'onerror=', 'onload=', 'alert('])
+        features['has_command_injection'] = any(cmd in content.lower() for cmd in [';', '|', '&', '`', 'exec(', 'system(', 'shell_exec('])
+        features['has_path_traversal'] = any(path in content.lower() for path in ['../', '..\\', '..%2f', '..%5c', '/etc/passwd'])
+        features['has_ssrf'] = any(ssrf in content.lower() for ssrf in ['localhost', '127.0.0.1', 'file://', 'gopher://', 'dict://'])
+        
+        # 统计特征
+        features['content_length'] = len(content)
+        features['content_entropy'] = self._calculate_entropy(content)
+        features['path_entropy'] = self._calculate_entropy(path)
+        features['ua_entropy'] = self._calculate_entropy(features['user_agent'])
         
         # 方法特征
         method = features['method'].upper()
@@ -720,6 +780,35 @@ class EnhancedAttackClassifier:
         features['is_patch'] = method == 'PATCH'
         features['is_options'] = method == 'OPTIONS'
         features['is_head'] = method == 'HEAD'
+        features['is_trace'] = method == 'TRACE'
+        features['is_connect'] = method == 'CONNECT'
+        
+        # 行为速率（无历史或外部未注入时默认为 0）
+        features['request_rate_1min'] = float(log_entry.get('request_rate_1min', 0))
+        features['failure_rate'] = float(log_entry.get('failure_rate', 0))
+        
+        # 综合风险评分
+        features['risk_score'] = 0
+        if features['is_error']:
+            features['risk_score'] += 1
+        if features['has_sql_injection']:
+            features['risk_score'] += 3
+        if features['has_xss']:
+            features['risk_score'] += 2
+        if features['has_command_injection']:
+            features['risk_score'] += 3
+        if features['has_path_traversal']:
+            features['risk_score'] += 2
+        if features['has_ssrf']:
+            features['risk_score'] += 3
+        if features['path_has_executable']:
+            features['risk_score'] += 2
+        if features['path_has_admin']:
+            features['risk_score'] += 1
+        if features['request_rate_1min'] > 50:
+            features['risk_score'] += 2
+        if features['failure_rate'] > 0.5:
+            features['risk_score'] += 2
         
         # 时间特征
         timestamp = log_entry.get('timestamp')
@@ -737,6 +826,39 @@ class EnhancedAttackClassifier:
         # 哈希特征
         features['path_hash'] = hashlib.md5(path.encode()).hexdigest()[:8]
         features['ua_hash'] = hashlib.md5(features['user_agent'].encode()).hexdigest()[:8]
+        
+        # 新增特征
+        # 路径规范化特征
+        features['path_normalized_length'] = len(path)
+        features['path_has_encoded_chars'] = '%' in str(log_entry.get('path', ''))
+        
+        # 频率特征（基于历史数据）
+        ip = features['ip']
+        if ip in self.history:
+            recent_attempts = len([entry for entry in self.history[ip] if (datetime.now() - entry['timestamp']).total_seconds() < 3600])
+            features['recent_attempts'] = recent_attempts
+            features['is_rapid_fire'] = recent_attempts > 10
+        else:
+            features['recent_attempts'] = 0
+            features['is_rapid_fire'] = False
+        
+        # 异常检测特征
+        features['is_suspicious_method'] = method not in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD']
+        features['is_suspicious_path'] = any(suspicious in path.lower() for suspicious in ['../', '..\\', 'admin', 'login', 'backup', 'config'])
+        features['is_suspicious_user_agent'] = 'unknown' in ua or 'bot' in ua
+        
+        # 组合特征
+        features['high_risk_combination'] = features['has_sql_injection'] and features['is_post']
+        features['medium_risk_combination'] = features['has_xss'] and features['is_get']
+        features['low_risk_combination'] = features['is_bot'] and features['is_404']
+        
+        # 新增风险评分因素
+        if features['is_suspicious_method']:
+            features['risk_score'] += 2
+        if features['is_rapid_fire']:
+            features['risk_score'] += 3
+        if features['high_risk_combination']:
+            features['risk_score'] += 2
         
         return features
     
@@ -1008,6 +1130,77 @@ class EnhancedAttackClassifier:
                 analysis['predicted_attack_type'] = 'Bot Activity'
             elif features['is_night'] and request_rate_1min > 20:
                 analysis['predicted_attack_type'] = 'Suspicious Activity'
+            elif features['path_has_admin'] and analysis['details']['failure_rate'] > 0.5:
+                analysis['predicted_attack_type'] = 'Brute Force'
+            elif features['path_has_upload'] and features['is_post']:
+                analysis['predicted_attack_type'] = 'File Upload'
+            elif features['path_has_executable'] and features['is_post']:
+                analysis['predicted_attack_type'] = 'Malware Infection'
+            elif features['has_command_injection']:
+                analysis['predicted_attack_type'] = 'Command Injection'
+            elif features['has_sql_injection']:
+                analysis['predicted_attack_type'] = 'SQL Injection'
+            elif features['has_xss']:
+                analysis['predicted_attack_type'] = 'XSS'
+            elif features['has_path_traversal']:
+                analysis['predicted_attack_type'] = 'Path Traversal'
+            elif features['has_ssrf']:
+                analysis['predicted_attack_type'] = 'SSRF'
+        
+        # 增强的行为模式分析
+        # 1. 连续失败模式
+        consecutive_failures = 0
+        for i in range(len(ip_history) - 1, max(-1, len(ip_history) - 10), -1):
+            if ip_history[i]['status'] >= 400:
+                consecutive_failures += 1
+            else:
+                break
+        analysis['details']['consecutive_failures'] = consecutive_failures
+        if consecutive_failures >= 5:
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append(f'连续失败 {consecutive_failures} 次')
+            analysis['behavior_score'] += 2.0
+        
+        # 2. 快速路径变化模式
+        recent_paths = [r['path'] for r in recent_1min]
+        unique_recent_paths = set(recent_paths)
+        if len(recent_paths) > 10 and len(unique_recent_paths) == len(recent_paths):
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append('快速路径变化')
+            analysis['behavior_score'] += 1.5
+        
+        # 3. 敏感路径访问模式
+        sensitive_paths = ['/admin', '/login', '/auth', '/secure', '/config', '/settings']
+        sensitive_access_count = sum(1 for r in recent_5min if any(sp in r['path'] for sp in sensitive_paths))
+        if sensitive_access_count > 10:
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append(f'频繁访问敏感路径 ({sensitive_access_count}次)')
+            analysis['behavior_score'] += 2.0
+        
+        # 4. 异常时间模式
+        if features['is_night'] and len(recent_1min) > 20:
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append('夜间异常活动')
+            analysis['behavior_score'] += 1.5
+        
+        # 5. 异常方法组合
+        if len(unique_methods) > 3 and len(recent_1min) > 15:
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append('异常HTTP方法组合')
+            analysis['behavior_score'] += 1.2
+        
+        # 6. 异常响应大小模式
+        if features['large_response'] and features['is_post']:
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append('异常大响应')
+            analysis['behavior_score'] += 1.5
+        
+        # 7. 异常内容类型
+        content_type = headers.get('Content-Type') or headers.get('content-type')
+        if content_type and 'application/x-www-form-urlencoded' not in content_type and 'multipart/form-data' not in content_type and features['is_post']:
+            analysis['is_anomalous'] = True
+            analysis['reasons'].append('异常内容类型')
+            analysis['behavior_score'] += 1.0
         
         return analysis
     
@@ -1552,7 +1745,20 @@ class EnhancedAttackClassifier:
             features['hour'],
             features['is_business_hours'],
             features['is_weekend'],
-            features['is_night']
+            features['is_night'],
+            
+            # 新增特征
+            features['path_normalized_length'],
+            features['path_has_encoded_chars'],
+            features['recent_attempts'],
+            features['is_rapid_fire'],
+            features['is_suspicious_method'],
+            features['is_suspicious_path'],
+            features['is_suspicious_user_agent'],
+            features['high_risk_combination'],
+            features['medium_risk_combination'],
+            features['low_risk_combination'],
+            features['risk_score']
         ]])
         
         # 标准化特征

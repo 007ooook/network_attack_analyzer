@@ -18,12 +18,9 @@ import {
 import {
   SafetyOutlined,
   ReloadOutlined,
-  SettingOutlined,
   WarningOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8006/api';
+import { api } from '../utils/api';
 
 const { Option } = Select;
 
@@ -54,6 +51,11 @@ export default function Alerts() {
   const [error, setError] = useState<string | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [initialized, setInitialized] = useState(false);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+    total: 0
+  });
 
   useEffect(() => {
     if (!initialized) {
@@ -62,7 +64,25 @@ export default function Alerts() {
     }
   }, []);
 
-  const loadAlerts = async () => {
+  // 避免频繁刷新，添加节流
+  const throttledLoadAlerts = (() => {
+    let lastCall = 0;
+    return () => {
+      const now = Date.now();
+      if (now - lastCall < 3000) { // 3秒内不重复调用
+        return;
+      }
+      lastCall = now;
+      loadAlerts(pagination.current, pagination.pageSize);
+    };
+  })();
+
+  // 分页处理
+  const handlePaginationChange = (page: number, pageSize: number) => {
+    loadAlerts(page, pageSize);
+  };
+
+  const loadAlerts = async (page: number = 1, pageSize: number = 20) => {
     try {
       setLoading(true);
       setError(null);
@@ -71,15 +91,24 @@ export default function Alerts() {
       if (filterSeverity !== 'all') {
         params.append('severity', filterSeverity);
       }
+      params.append('limit', pageSize.toString());
+      params.append('offset', ((page - 1) * pageSize).toString());
       
-      const response = await axios.get(`${API_BASE_URL}/alerts?${params.toString()}`);
+      const response = await api.get('/alerts?' + params.toString());
       const data = response.data;
       
       if (data.error) {
-        throw new Error(data.error);
+        setError(data.error);
+        message.error(data.error);
+        setAlerts([]);
+      } else {
+        setAlerts(data.alerts || []);
+        setPagination({
+          current: page,
+          pageSize: pageSize,
+          total: data.total || 0
+        });
       }
-      
-      setAlerts(data.alerts || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load alerts');
       message.error(t('common.error'));
@@ -208,12 +237,9 @@ export default function Alerts() {
           <Space>
             <Button 
               icon={<ReloadOutlined />} 
-              onClick={loadAlerts}
+              onClick={throttledLoadAlerts}
             >
               {t('common.refresh', '刷新')}
-            </Button>
-            <Button icon={<SettingOutlined />}>
-              {t('alerts.settings', '设置')}
             </Button>
           </Space>
         </Col>
@@ -268,10 +294,19 @@ export default function Alerts() {
                   rowKey="id"
                   loading={loading}
                   pagination={{
-                    pageSize: 20,
+                    current: pagination.current,
+                    pageSize: pagination.pageSize,
+                    total: pagination.total,
                     showSizeChanger: true,
                     showTotal: (total) => `${t('alerts.total', '总计')} ${total} ${t('alerts.items', '条')}`,
+                    onChange: handlePaginationChange
                   }}
+                  scroll={{
+                    x: 1200,
+                    y: 600,
+                    scrollToFirstRowOnChange: true
+                  }}
+                  virtual
                   locale={{
                     emptyText: (
                       <Empty

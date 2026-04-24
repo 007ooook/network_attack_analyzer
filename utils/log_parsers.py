@@ -389,26 +389,48 @@ class CsvParser(LogParser):
 
 
 class SyslogParser(LogParser):
-    # Strip syslog prefixes like "Mar 23 17:36:38 host nginx: "
-    SYSLOG_PATTERN = re.compile(r'^[A-Z][a-z]{2}\s+\d+\s+\d+:\d+:\d+\s+\S+\s+(?P<proc>[^:]+):\s+(?P<msg>.*)$')
+    # Strip syslog prefixes like "<14>Mar 23 17:36:38 host nginx: "
+    SYSLOG_PATTERN = re.compile(r'^<\d+>(?P<month>[A-Z][a-z]{2})\s+(?P<day>\d+)\s+(?P<time>\d+:\d+:\d+)\s+(?P<host>\S+)\s+(?P<proc>[^:]+):\s+(?P<msg>.*)$')
 
     def parse(self, line: str) -> Optional[LogEntry]:
         match = self.SYSLOG_PATTERN.match(line.strip())
         if not match:
             return None
         
-        # Pass the message part to other parsERS via parse_log_line recursively
-        # But we need to avoid infinite recursion
+        # 提取 Syslog 字段
+        month = match.group("month")
+        day = match.group("day")
+        time = match.group("time")
+        host = match.group("host")
+        proc = match.group("proc")
         msg = match.group("msg")
-        # Temporarily remove SyslogParser from active parsers to prevent recursion
-        # Or just manually call other specific parsers
-        for parser in _PARSER_INSTANCES:
-            if isinstance(parser, SyslogParser):
-                continue
-            res = parser.parse(msg)
-            if res:
-                return res
-        return None
+        
+        # 尝试从消息中提取 IP 地址
+        ip_match = re.search(r'Source IP: (\S+)', msg)
+        ip = ip_match.group(1) if ip_match else host
+        
+        # 尝试从消息中提取 HTTP 方法和路径
+        method = "GET"
+        path = "/"
+        
+        # 构建 LogEntry
+        return LogEntry(
+            ip=ip,
+            timestamp=parse_timestamp(f"{month} {day} {time}"),
+            method=method,
+            path=path,
+            status=200,
+            size=len(msg),
+            referer="-",
+            user_agent="-",
+            source="syslog",
+            raw_line=line,
+            extra={
+                "syslog_host": host,
+                "syslog_process": proc,
+                "syslog_message": msg
+            }
+        )
 
 
 class FallbackParser(LogParser):

@@ -3,8 +3,10 @@
     "dashboard": "Dashboard",
     "logParser": "Log Parser",
     "logsList": "Logs List",
-    "threatIntel": "Threat Intelligence",
-    "prediction": "Attack Prediction",
+    "logAnalysis": "Log Analysis",
+    "threatIntel": "Threat Intel",
+    "prediction": "Prediction",
+    "alerts": "Alerts",
     "dataSources": "Data Sources",
     "systemConfig": "System Config"
   },
@@ -59,19 +61,42 @@
   "logsList": {
     "title": "Logs List",
     "searchPlaceholder": "Search logs...",
-    "ip": "IP",
+    "ip": "IP Address",
     "timestamp": "Timestamp",
     "receivedAt": "Received At",
     "method": "Method",
     "path": "Path",
     "status": "Status",
     "size": "Size",
+    "userAgent": "User Agent",
     "attackType": "Attack Type",
     "threatLevel": "Threat Level",
     "anomalyScore": "Anomaly Score",
     "actions": "Actions",
     "viewDetails": "View Details",
     "noLogs": "No logs found"
+  },
+  "logAnalysis": {
+    "title": "Log Analysis",
+    "analyze": "Analyze",
+    "logFormat": "Log Format",
+    "selectLogFormat": "Select log format",
+    "severity": "Severity",
+    "selectSeverity": "Select severity",
+    "timeRange": "Time Range",
+    "statistics": "Statistics",
+    "totalLogs": "Total Logs",
+    "anomalyLogs": "Anomaly Logs",
+    "attackPercentage": "Attack Percentage",
+    "logFormatDistribution": "Log Format Distribution",
+    "attackTypeDistribution": "Attack Type Distribution",
+    "attackTrend24h": "24h Attack Trend",
+    "severityDistribution": "Severity Distribution",
+    "recentLogs": "Recent Logs",
+    "attackType": "Attack Type",
+    "count": "Count",
+    "threatSources": "Threat Sources",
+    "ruleAnalysis": "Rule Analysis"
   },
   "threatIntel": {
     "title": "Threat Intelligence",
@@ -305,6 +330,8 @@
       "status": "Status",
       "logs": "Logs",
       "lastConnected": "Last Connected",
+      "lastLogReceived": "Last Log Received",
+      "lastSourceIP": "Last Source IP",
       "actions": "Actions",
       "id": "ID"
     },
@@ -413,8 +440,16 @@
       "status": "Status",
       "processed": "Processed",
       "pending": "Pending",
-      "noLogs": "No logs received yet"
-    }
+      "noLogs": "No logs received yet",
+      "total": "Total",
+      "recent5m": "Last 5 Minutes",
+      "threats": "Threats"
+    },
+    "justNow": "Just now",
+    "minutesAgo": "minutes ago",
+    "hoursAgo": "hours ago",
+    "daysAgo": "days ago",
+    "unknown": "Unknown"
   },
   "alerts": {
     "title": "Alerts Management",
@@ -460,5 +495,33 @@
     "items": "items",
     "duplicate": "Duplicate",
     "aggregated": "Aggregated"
+  },
+  "dataSourceLogs": {
+    "title": "Data Source Logs",
+    "selectDataSource": "Select Data Source",
+    "id": "ID",
+    "sourceId": "Source ID",
+    "receivedAt": "Received At",
+    "ip": "IP Address",
+    "rawLog": "Raw Log",
+    "parsedLog": "Parsed Log",
+    "processed": "Processed",
+    "errorMessage": "Error Message",
+    "actions": "Actions",
+    "viewDetail": "View Detail",
+    "logDetail": "Log Detail",
+    "yes": "Yes",
+    "no": "No",
+    "filters": {
+      "title": "Log Filters",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "processedStatus": "Processed Status",
+      "errorStatus": "Error Status",
+      "keyword": "Keyword Search",
+      "ip": "IP Address",
+      "reset": "Reset",
+      "apply": "Apply Filters"
+    }
   }
 }
