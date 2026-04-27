@@ -172,6 +172,48 @@ def init_database():
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_source_logs_processed ON data_source_logs (processed)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_data_source_logs_source_ip ON data_source_logs (source_ip)')
     
+    # 创建数据源表（如果不存在）
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS data_sources (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        host TEXT,
+        port INTEGER,
+        path TEXT,
+        api_url TEXT,
+        api_key TEXT,
+        enabled BOOLEAN DEFAULT 1,
+        status TEXT DEFAULT 'active',
+        config TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS data_source_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_id INTEGER,
+        message TEXT,
+        source_ip TEXT,
+        processed BOOLEAN DEFAULT 0,
+        received_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (source_id) REFERENCES data_sources(id)
+    )
+    ''')
+
+    # 创建系统配置表（如果不存在）
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS system_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT UNIQUE NOT NULL,
+        value TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
     # system_config 表索引
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_system_config_key ON system_config (key)')
     

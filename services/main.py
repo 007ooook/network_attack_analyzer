@@ -46,8 +46,7 @@ def start_server(port: int = 65534) -> None:
         os.makedirs('logs', exist_ok=True)
         
         # 初始化监控
-        from services.monitoring import get_monitor, collect_and_save_metrics
-        monitor = get_monitor()
+        from services.monitoring import collect_and_save_metrics
         
         # 启动指标收集线程
         import threading

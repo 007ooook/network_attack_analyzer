@@ -176,20 +176,8 @@ class LogsHandlersMixin:
             conn = self.ctx.get_db_connection()
             cursor = conn.cursor()
         
-            # 检查配置表是否存在
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_config'")
-            if not cursor.fetchone():
-                # 创建配置表
-                cursor.execute('''
-                CREATE TABLE IF NOT EXISTS system_config (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    key TEXT UNIQUE NOT NULL,
-                    value TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                ''')
-            
+            cursor.execute('SELECT COUNT(*) FROM system_config')
+            if cursor.fetchone()[0] == 0:
                 # 插入默认配置
                 default_config = {
                     'api_url': 'http://localhost:8003/api',
@@ -250,17 +238,6 @@ class LogsHandlersMixin:
         try:
             conn = self.ctx.get_db_connection()
             cursor = conn.cursor()
-        
-            # 确保配置表存在（只执行一次）
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_config (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT UNIQUE NOT NULL,
-                value TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
         
             # 开始事务
             conn.execute('BEGIN TRANSACTION')
@@ -335,16 +312,6 @@ class LogsHandlersMixin:
             conn = self.ctx.get_db_connection()
             cursor = conn.cursor()
             
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_config (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT UNIQUE NOT NULL,
-                value TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
-            
             for key, value in default_configs[section].items():
                 cursor.execute('''
                 INSERT OR REPLACE INTO system_config (key, value, updated_at)
@@ -375,17 +342,6 @@ class LogsHandlersMixin:
         
             conn = self.ctx.get_db_connection()
             cursor = conn.cursor()
-        
-            # 确保配置表存在
-            cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_config (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                key TEXT UNIQUE NOT NULL,
-                value TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            ''')
         
             # 转换为字符串存储
             str_value = str(value)

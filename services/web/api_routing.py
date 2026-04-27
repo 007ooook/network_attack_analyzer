@@ -18,6 +18,7 @@ def _exact_routes() -> _GetExact:
         "/api/config": lambda h, q: h.handle_get_config(),
         "/api/query-threat-intel": lambda h, q: h.handle_query_threat_intel(q),
         "/api/threat-intel-summary": lambda h, q: h.handle_get_threat_intel_summary(),
+        "/api/health": lambda h, q: h.handle_get_system_health(),
         "/api/system-health": lambda h, q: h.handle_get_system_health(),
         "/api/threats": lambda h, q: h.handle_get_threats(q),
         "/api/predictions": lambda h, q: h.handle_get_predictions(q),
@@ -27,12 +28,12 @@ def _exact_routes() -> _GetExact:
         "/api/alerts": lambda h, q: h.handle_get_alerts(q),
         "/api/alerts/statistics": lambda h, q: h.handle_get_alert_statistics(),
         "/api/alert-rules": lambda h, q: h.handle_get_alert_rules(),
-            "/api/alert-policies": lambda h, q: h.handle_get_alert_policies(),
-            "/api/notification-history": lambda h, q: h.handle_get_notification_history(q),
-            "/api/metrics": lambda h, q: h.handle_get_metrics(q),
-            "/api/rules": lambda h, q: h.handle_get_alert_rules(),
-            "/api/me": lambda h, q: h.handle_get_current_user(),
-            "/api/security-config": lambda h, q: h.handle_get_security_config(),
+        "/api/alert-policies": lambda h, q: h.handle_get_alert_policies(),
+        "/api/notification-history": lambda h, q: h.handle_get_notification_history(q),
+        "/api/metrics": lambda h, q: h.handle_get_metrics(q),
+        "/api/rules": lambda h, q: h.handle_get_alert_rules(),
+        "/api/me": lambda h, q: h.handle_get_current_user(),
+        "/api/security-config": lambda h, q: h.handle_get_security_config(),
     }
 
 
