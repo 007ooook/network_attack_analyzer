@@ -66,67 +66,67 @@
 
 ### 仪表盘
 
-![仪表盘](screenshots/dashboard.png)
+![仪表盘](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/dashboard.png)
 
 系统主界面，左侧为功能导航菜单，右侧显示系统概览统计和最近日志列表。
 
 ### 日志分析
 
-![日志分析](screenshots/log-analysis.png)
+![日志分析](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/log-analysis.png)
 
 日志分析页面，支持多种日志格式的分析和统计功能。
 
 ### 威胁情报
 
-![威胁情报](screenshots/threat-intel.png)
+![威胁情报](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/threat-intel.png)
 
 威胁情报管理界面，展示安全威胁信息和情报分析结果。
 
 ### 告警管理
 
-![告警管理](screenshots/alerts.png)
+![告警管理](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/alerts.png)
 
 安全告警管理中心，显示系统检测到的安全告警和事件。
 
 ### 规则管理
 
-![规则管理](screenshots/rules.png)
+![规则管理](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/rules.png)
 
 告警规则配置界面，支持自定义安全检测规则。
 
 ### 数据源管理
 
-![数据源管理](screenshots/data-sources.png)
+![数据源管理](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/data-sources.png)
 
 数据源配置页面，支持多种数据源的接入和管理。
 
 ### 日志解析
 
-![日志解析](screenshots/log-parser.png)
+![日志解析](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/log-parser.png)
 
 日志解析工具，支持自定义日志格式解析规则。
 
 ### 日志列表
 
-![日志列表](screenshots/logs.png)
+![日志列表](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/logs.png)
 
 日志查询和浏览界面，支持日志的搜索和筛选。
 
 ### 攻击预测
 
-![攻击预测](screenshots/prediction.png)
+![攻击预测](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/prediction.png)
 
 基于AI的攻击预测分析，提供安全威胁的趋势预测。
 
 ### 数据源日志
 
-![数据源日志](screenshots/data-source-logs.png)
+![数据源日志](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/data-source-logs.png)
 
 数据源日志监控，显示各数据源的运行状态和日志信息。
 
 ### 系统配置
 
-![系统配置](screenshots/system-config.png)
+![系统配置](https://raw.githubusercontent.com/007ooook/network_attack_analyzer/master/screenshots/system-config.png)
 
 系统参数配置界面，支持系统各项参数的调整和优化。
 
